@@ -546,10 +546,10 @@ def main():
         # TREC file configuration
         st.subheader("📁 TREC Database")
         
-        # Try to find TREC file (in order of preference)
+        # Try to find TREC file (prioritize full database)
         trec_files = [
-            "trec-sales-or-agent copy 2.csv",  # Full database
-            "trec-sample.csv",                 # Sample for demo
+            "trec-sales-or-agent copy 2.csv",  # Full database (Git LFS)
+            "trec-sales-or-agent.csv",         # Alternative naming
         ]
         
         trec_file = None
@@ -558,11 +558,11 @@ def main():
                 trec_file = file
                 break
         
-        # File upload option
+        # File upload option (optional now)
         uploaded_file = st.file_uploader(
-            "Upload your own TREC database (CSV)", 
+            "Upload custom TREC database (Optional)", 
             type=['csv'],
-            help="Upload a custom TREC database file, or use the default sample"
+            help="Optional: Upload a different TREC database file"
         )
         
         if uploaded_file is not None:
@@ -572,18 +572,21 @@ def main():
                 f.write(uploaded_file.getbuffer())
             st.success(f"✅ Custom TREC database uploaded: {uploaded_file.name}")
         elif trec_file:
-            if "sample" in trec_file:
-                st.info(f"📊 Using sample TREC database: {trec_file}")
-                st.warning("⚠️ This is a limited sample. Upload your full TREC database for complete results.")
-            else:
+            # Show database stats
+            try:
+                df_stats = pd.read_csv(trec_file, nrows=0)  # Just get columns
+                full_df = pd.read_csv(trec_file)
+                st.success(f"✅ Full TREC database loaded: {len(full_df):,} records")
+                del full_df  # Free memory
+            except:
                 st.success(f"✅ TREC database found: {trec_file}")
         else:
-            st.error("❌ No TREC database found. Please upload a TREC CSV file.")
+            st.error("❌ No TREC database found.")
             st.stop()
         
         # Show selected license types
         if selected_licenses:
-            st.info(f"📊 Selected: {', '.join(selected_licenses)}")
+            st.info(f"📊 Selected License Types: {', '.join(selected_licenses)}")
     
     # Main interface
     col1, col2 = st.columns([2, 1])
@@ -745,7 +748,7 @@ def process_data(city: str, pages: int, threshold: float, trec_file: str, select
                     f'License Types: {", ".join(selected_licenses)}',
                     f'Total Records: {quality_metrics["total_records"]}',
                     f'Matched Records: {quality_metrics["matched_records"]}',
-                    f'Data Quality: {quality_metrics["data_completeness"]:.1f}%',
+                    f'Data Quality: {quality_metrics["data_completeness"]}:.1f%',
                     f'Validation Passed: {"Yes" if quality_metrics["validation_passed"] else "No"}',
                     '--- DATA STARTS BELOW ---'
                 ]
