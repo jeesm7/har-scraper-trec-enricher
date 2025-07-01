@@ -532,7 +532,6 @@ def main():
         pages = st.number_input(
             "Pages to Scrape", 
             min_value=1, 
-            max_value=500, 
             value=5,
             help="Number of pages to scrape (20 agents per page)"
         )
