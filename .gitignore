@@ -43,15 +43,9 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-# Output files
+# Output files only (allow TREC database)
 Enriched CSVs/
 har_*.csv
-
-# Large TREC database files (exclude from repo)
-trec-sales-or-agent*.csv
-
-# Allow sample TREC database
-!trec-sample.csv
 
 # Temporary files
 temp_trec_*.csv
@@ -61,4 +55,4 @@ temp_trec_*.csv
 
 # Temporary files
 temp/
-tmp/ 
+tmp/
