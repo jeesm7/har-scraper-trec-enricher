@@ -260,9 +260,11 @@ class DataValidator:
         return df_clean
 
 class HARScraper:
-    def __init__(self, city: str, total_pages: int):
+    def __init__(self, city: str, start_page: int, end_page: int):
         self.city = city.lower()
-        self.total_pages = total_pages
+        self.start_page = start_page
+        self.end_page = end_page
+        self.total_pages = end_page - start_page + 1
         self.base_url = f"https://www.har.com/{self.city}/real_estate_agents?officecity={self.city}&search_type=member&seo=1&sort=rnd&page_size=20&page={{page}}"
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -334,12 +336,13 @@ class HARScraper:
         return agents
     
     def scrape_agents(self, progress_callback=None):
-        """Scrape all agents and return as DataFrame"""
+        """Scrape agents from specified page range and return as DataFrame"""
         all_agents = []
         
-        for page in range(1, self.total_pages + 1):
+        for page in range(self.start_page, self.end_page + 1):
             if progress_callback:
-                progress_callback(page, self.total_pages)
+                current_position = page - self.start_page + 1
+                progress_callback(current_position, self.total_pages, page)
             
             url = self.base_url.format(page=page)
             try:
@@ -528,13 +531,32 @@ def main():
             help="Enter the city name as it appears in HAR URLs (e.g., austin, dallas, houston)"
         )
         
-        # Pages to scrape
-        pages = st.number_input(
-            "Pages to Scrape", 
-            min_value=1, 
-            value=5,
-            help="Number of pages to scrape (20 agents per page)"
-        )
+        # Page range selection
+        st.subheader("📄 Page Range Selection")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            start_page = st.number_input(
+                "Start Page", 
+                min_value=1, 
+                value=1,
+                help="First page to scrape"
+            )
+        with col2:
+            end_page = st.number_input(
+                "End Page", 
+                min_value=start_page, 
+                value=5,
+                help="Last page to scrape (inclusive)"
+            )
+        
+        # Calculate total pages for display
+        total_pages = end_page - start_page + 1
+        total_agents = total_pages * 20
+        
+        if start_page > end_page:
+            st.error("❌ Start page must be less than or equal to end page")
+            st.stop()
         
         # Match threshold
         threshold = st.slider(
@@ -644,14 +666,15 @@ def main():
     with col1:
         st.subheader(f"Scraping Configuration")
         st.info(f"**City:** {city.title()}")
-        st.info(f"**Pages:** {pages} (≈ {pages * 20} agents)")
-        st.info(f"**Estimated time:** {pages * 2} seconds")
+        st.info(f"**Page Range:** {start_page} to {end_page} ({total_pages} pages)")
+        st.info(f"**Expected Agents:** ≈ {total_agents} agents")
+        st.info(f"**Estimated Time:** {total_pages * 2} seconds")
     
     with col2:
         if st.button("🚀 Start Scraping & Enrichment", type="primary", use_container_width=True):
-            process_data(city, pages, threshold, trec_file, selected_licenses)
+            process_data(city, start_page, end_page, threshold, trec_file, selected_licenses)
 
-def process_data(city: str, pages: int, threshold: float, trec_file: str, selected_licenses: list):
+def process_data(city: str, start_page: int, end_page: int, threshold: float, trec_file: str, selected_licenses: list):
     """Main processing function with comprehensive data validation"""
     
     # Initialize data validator
@@ -664,16 +687,16 @@ def process_data(city: str, pages: int, threshold: float, trec_file: str, select
         st.subheader("🔄 Processing with Data Validation...")
         
         # Step 1: Scraping
-        st.write("**Step 1: Scraping HAR data...**")
-        scraper = HARScraper(city, pages)
+        st.write(f"**Step 1: Scraping HAR data (pages {start_page}-{end_page})...**")
+        scraper = HARScraper(city, start_page, end_page)
         
         scrape_progress = st.progress(0)
         scrape_status = st.empty()
         
-        def update_scrape_progress(current_page, total_pages):
-            progress = current_page / total_pages
+        def update_scrape_progress(current_position, total_pages, actual_page):
+            progress = current_position / total_pages
             scrape_progress.progress(progress)
-            scrape_status.text(f"Scraping page {current_page}/{total_pages}")
+            scrape_status.text(f"Scraping page {actual_page} ({current_position}/{total_pages})")
         
         try:
             har_df = scraper.scrape_agents(update_scrape_progress)
@@ -793,7 +816,7 @@ def process_data(city: str, pages: int, threshold: float, trec_file: str, select
                 'Metadata': [
                     f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
                     f'City: {city.title()}',
-                    f'Pages Scraped: {pages}',
+                    f'Page Range: {start_page} to {end_page}',
                     f'Match Threshold: {threshold}',
                     f'License Types: {", ".join(selected_licenses)}',
                     f'Total Records: {quality_metrics["total_records"]}',
