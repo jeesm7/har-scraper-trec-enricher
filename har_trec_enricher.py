@@ -180,10 +180,12 @@ class DataValidator:
         return metrics
     
     def sanitize_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Clean and sanitize data for export"""
+        """Clean and sanitize data for export with enhanced name parsing and phone formatting"""
         st.write("🧹 **Sanitizing data for export...**")
         
         df_clean = df.copy()
+        name_parse_count = 0
+        phone_format_count = 0
         
         # Clean phone numbers
         if 'phone' in df_clean.columns:
@@ -193,6 +195,52 @@ class DataValidator:
         if 'name' in df_clean.columns:
             df_clean['name'] = df_clean['name'].astype(str).str.strip()
             df_clean['name'] = df_clean['name'].str.replace(r'\s+', ' ', regex=True)
+            
+            # Parse names into first_name and last_name
+            df_clean['first_name'] = ''
+            df_clean['last_name'] = ''
+            
+            for idx, row in df_clean.iterrows():
+                name = str(row['name']).strip()
+                if name and name != 'nan':
+                    name_parts = name.split()
+                    if len(name_parts) == 1:
+                        # Single name - treat as first name
+                        df_clean.at[idx, 'first_name'] = name_parts[0]
+                        df_clean.at[idx, 'last_name'] = ''
+                    elif len(name_parts) == 2:
+                        # Two names - first and last
+                        df_clean.at[idx, 'first_name'] = name_parts[0]
+                        df_clean.at[idx, 'last_name'] = name_parts[1]
+                    elif len(name_parts) >= 3:
+                        # Three or more names - first is first name, last is last name, middle names ignored
+                        df_clean.at[idx, 'first_name'] = name_parts[0]
+                        df_clean.at[idx, 'last_name'] = name_parts[-1]
+                    
+                    if name_parts:
+                        name_parse_count += 1
+        
+        # Format phone numbers to E.164 standard
+        if 'phone' in df_clean.columns:
+            df_clean['phone_e164'] = ''
+            
+            for idx, row in df_clean.iterrows():
+                phone = str(row['phone']).strip()
+                if phone and phone != 'nan':
+                    # Extract only digits
+                    digits_only = re.sub(r'\D', '', phone)
+                    
+                    if len(digits_only) == 10:
+                        # US number without country code
+                        df_clean.at[idx, 'phone_e164'] = f"+1{digits_only}"
+                        phone_format_count += 1
+                    elif len(digits_only) == 11 and digits_only.startswith('1'):
+                        # US number with country code
+                        df_clean.at[idx, 'phone_e164'] = f"+{digits_only}"
+                        phone_format_count += 1
+                    else:
+                        # Invalid or non-US number - leave empty
+                        df_clean.at[idx, 'phone_e164'] = ''
         
         # Clean organization names
         if 'organization' in df_clean.columns:
@@ -206,6 +254,9 @@ class DataValidator:
         df_clean = df_clean.dropna(how='all')
         
         st.success(f"✅ Data sanitized - {len(df_clean)} clean records ready for export")
+        st.write(f"• **Names parsed:** {name_parse_count} records")
+        st.write(f"• **Phone numbers formatted:** {phone_format_count} records")
+        
         return df_clean
 
 class HARScraper:
